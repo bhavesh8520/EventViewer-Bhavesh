@@ -1,0 +1,1316 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <title>MK EAE Response Viewer — DCG & DCH</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <!-- SheetJS for Excel export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <style>
+        :root {
+            --bg: #f7f7f8;
+            --panel: #fff;
+            --text: #111;
+            --muted: #6b6b6b;
+            --accent: #0b74de;
+            --mark-bg: #fff9a8;
+            /* yellow highlight */
+            --match: #c8f7c3;
+            --mismatch: #f8c9c9;
+            --border: rgba(0, 0, 0, 0.12);
+            --header-bg: rgba(255, 255, 255, 0.95);
+        }
+
+        [data-theme="dark"] {
+            --bg: #0f1113;
+            --panel: #15171a;
+            --text: #e6e6e6;
+            --muted: #9aa;
+            --accent: #5aa9ff;
+            --mark-bg: #4b3b00;
+            --match: #2b6f2b;
+            --mismatch: #6a1a1a;
+            --border: rgba(255, 255, 255, 0.12);
+            --header-bg: rgba(20, 22, 26, 0.98);
+        }
+
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            font-family: Inter, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        /* Topbar two layers */
+        .topbar {
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            padding: 8px;
+            background: linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.01));
+            box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04)
+        }
+
+        .top-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 6px 10px;
+        }
+
+        .top-row .left {
+            flex: 0 0 auto
+        }
+
+        .top-row .center {
+            flex: 1;
+            display: flex;
+            justify-content: center
+        }
+
+        .top-row .mid-right {
+            display: flex;
+            gap: 8px;
+            align-items: center
+        }
+
+        .top-row .right {
+            flex: 0 0 auto;
+            margin-left: auto
+        }
+
+        .second-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px;
+            border-top: 1px solid var(--border);
+            background: var(--panel)
+        }
+
+        .second-row .left {
+            display: flex;
+            gap: 8px;
+            align-items: center
+        }
+
+        .second-row .right {
+            margin-left: auto;
+            display: flex;
+            gap: 8px;
+            align-items: center
+        }
+
+        input[type="text"],
+        input[type="date"],
+        select {
+            padding: 8px 10px;
+            font-size: 14px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            min-width: 180px;
+            background: transparent;
+            color: var(--text)
+        }
+
+        button {
+            padding: 8px 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--panel);
+            cursor: pointer;
+            color: var(--text)
+        }
+
+        button.primary {
+            background: var(--accent);
+            color: #fff;
+            border: none
+        }
+
+        .btn-round {
+            width: 36px;
+            height: 36px;
+            border-radius: 18px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center
+        }
+
+        /* Main area */
+        .main {
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 120px);
+            padding: 12px;
+            gap: 12px;
+            overflow: hidden
+        }
+
+        .status-line {
+            display: flex;
+            align-items: center;
+            gap: 12px
+        }
+
+        .split-wrap {
+            display: flex;
+            flex: 1;
+            min-height: 0;
+            background: transparent;
+            border-radius: 8px;
+            overflow: hidden
+        }
+
+        .panel {
+            background: var(--panel);
+            flex: 1;
+            overflow: auto;
+            padding: 12px;
+            border-radius: 8px;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.04);
+            border: 1px solid var(--border)
+        }
+
+        .panel h3 {
+            margin: 0 0 8px 0;
+            font-size: 16px
+        }
+
+        .panel .meta {
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 8px
+        }
+
+        /* splitter */
+        .splitter {
+            width: 8px;
+            background: transparent;
+            cursor: col-resize;
+            display: flex;
+            align-items: center;
+            justify-content: center
+        }
+
+        .splitter .bar {
+            width: 3px;
+            height: 60px;
+            background: linear-gradient(180deg, rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.02));
+            border-radius: 2px
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px
+        }
+
+        thead th {
+            position: sticky;
+            top: 0;
+            background: var(--header-bg);
+            padding: 8px;
+            border-bottom: 2px solid var(--border);
+            opacity: 1
+        }
+
+        tbody td {
+            padding: 8px;
+            border-bottom: 1px solid var(--border);
+            text-align: left;
+            vertical-align: top
+        }
+
+        th,
+        td {
+            border-right: 1px solid transparent
+        }
+
+        td .small {
+            font-size: 12px;
+            color: var(--muted)
+        }
+
+        mark {
+            background: var(--mark-bg);
+            padding: 0 2px;
+            border-radius: 2px
+        }
+
+        /* compare / modal styles */
+        .modal {
+            position: fixed;
+            inset: 80px 20px 20px 20px;
+            background: var(--panel);
+            z-index: 90;
+            padding: 14px;
+            border-radius: 8px;
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.25);
+            overflow: auto;
+            display: none
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px
+        }
+
+        .modal pre {
+            white-space: pre-wrap;
+            word-break: break-word;
+            background: var(--bg);
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            max-height: 60vh;
+            overflow: auto
+        }
+
+        .muted {
+            color: var(--muted);
+            font-size: 13px
+        }
+
+        .warning {
+            color: #b33;
+            margin-left: 8px;
+            font-weight: 600
+        }
+
+        /* add this near other utility CSS rules inside <style> */
+        .hidden {
+            display: none !important;
+        }
+
+        .splitter {
+            z-index: 60;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+
+        .splitter .bar {
+            width: 6px;
+            background: rgba(0, 0, 0, 0.12);
+            border-radius: 3px;
+            pointer-events: auto;
+        }
+
+        @media (max-width:900px) {
+            .split-wrap {
+                flex-direction: column
+            }
+
+            .splitter {
+                height: 8px;
+                width: 100%;
+                cursor: row-resize
+            }
+        }
+    </style>
+</head>
+
+<body data-theme="light">
+
+    <!-- TOPBAR: Two-layer -->
+    <div class="topbar">
+        <!-- First/top layer -->
+        <div class="top-row">
+            <div class="left">
+                <div style="font-weight:700;font-size:18px;color:var(--accent)">MK EAE Response Viewer</div>
+            </div>
+
+            <div class="center">
+                <input id="searchBox" type="text" placeholder="🔍 Search both regions..." style="width:60%" />
+            </div>
+
+            <div class="mid-right">
+                <button id="shareBtn" class="primary">Share Monitoring URL</button>
+                <button id="compareBtn">Compare OAID</button>
+                <button id="themeToggle">🌙</button>
+            </div>
+
+            <div class="right">
+                <div id="utcClock" style="font-weight:700"></div>
+            </div>
+        </div>
+
+        <!-- Second/bottom layer -->
+        <div class="second-row">
+            <div class="left">
+                <label style="display:flex;align-items:center;gap:8px"><input id="showDchCheckbox" type="checkbox" />
+                    <span class="muted">Show DCH</span></label>
+
+                <label style="display:flex;align-items:center;gap:6px"><input id="protocolHls" type="checkbox" />
+                    HLS</label>
+                <label style="display:flex;align-items:center;gap:6px"><input id="protocolDash" type="checkbox" />
+                    DASH</label>
+                <label style="display:flex;align-items:center;gap:6px"><input id="protocolHlsToken" type="checkbox" />
+                    HLS Token</label>
+                <label style="display:flex;align-items:center;gap:6px"><input id="protocolDashToken" type="checkbox" />
+                    DASH Token</label>
+
+                <label style="display:flex;align-items:center;gap:6px;margin-left:12px">
+                    <input id="detailedViewCheckbox" type="checkbox" /> <span class="muted">Detailed View</span>
+                </label>
+
+                <label style="display:flex;align-items:center;gap:6px;margin-left:12px">
+                    <span class="muted">Start</span> <input id="dateStart" type="date" />
+                </label>
+                <label style="display:flex;align-items:center;gap:6px">
+                    <span class="muted">End</span> <input id="dateEnd" type="date" />
+                </label>
+            </div>
+
+            <div class="right">
+                <button id="refreshBtn">⟳ Refresh</button>
+                <button id="exportBtn">📤 Export</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main -->
+    <div class="main">
+        <div class="status-line">
+            <div id="countsInfo" class="muted">Loading...</div>
+            <div style="margin-left:auto" class="muted">Token: <code id="tokenPreview" style="font-weight:700"></code>
+            </div>
+        </div>
+
+        <div class="split-wrap" id="splitWrap">
+            <!-- DCG -->
+            <div class="panel" id="dcgPanel" style="flex-basis:100%">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                    <div>
+                        <h3>📍 DCG</h3>
+                        <div class="meta">Loaded on open. Select rows to create monitoring URLs.</div>
+                    </div>
+                    <div><button id="exportDcgBtn">⬇️ Export DCG</button></div>
+                </div>
+                <div id="dcgContainer">Loading DCG...</div>
+            </div>
+
+            <div class="splitter hidden" id="splitter">
+                <div class="bar"></div>
+            </div>
+
+            <!-- DCH -->
+            <div class="panel hidden" id="dchPanel" style="flex-basis:50%">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                    <div>
+                        <h3>📍 DCH</h3>
+                        <div class="meta">Load on demand when 'Show DCH' toggled</div>
+                    </div>
+                    <div><button id="exportDchBtn">⬇️ Export DCH</button></div>
+                </div>
+                <div id="dchContainer">Not loaded</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Compare modal (in-page) -->
+    <div class="modal" id="compareModal" aria-hidden="true">
+        <div class="modal-header">
+            <div style="display:flex;gap:8px;align-items:center">
+                <h3>Compare OAID</h3>
+                <input id="compareOaidInput" type="text" placeholder="Enter OAID"
+                    style="padding:6px 8px;border-radius:6px;border:1px solid var(--border)" />
+                <button id="compareRunBtn" class="primary">Run Compare</button>
+                <button id="compareExportBtn">Export Compare</button>
+            </div>
+            <div><button id="closeCompareBtn" class="btn-round">✕</button></div>
+        </div>
+        <div id="compareResult"></div>
+    </div>
+
+    <!-- Detail modal for Detailed View -->
+    <div class="modal" id="detailModal" aria-hidden="true">
+        <div class="modal-header">
+            <div>
+                <h3>Event Detail</h3>
+                <div id="detailSubtitle" class="muted"></div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+                <button id="detailFetchLatest" class="primary">Fetch Latest</button>
+                <button id="detailCloseBtn" class="btn-round">✕</button>
+            </div>
+        </div>
+        <pre id="detailContent"></pre>
+    </div>
+
+    <!-- Small toast/modal for share URL copy -->
+    <div class="modal" id="shareModal" aria-hidden="true" style="max-width:720px;left:calc(50% - 360px);">
+        <div class="modal-header">
+            <div>
+                <h3>Share Monitoring URL</h3>
+                <div class="muted">URL is copied to clipboard (or use the box to copy manually)</div>
+            </div>
+            <div><button id="shareCloseBtn" class="btn-round">✕</button></div>
+        </div>
+        <div style="margin-bottom:8px"><textarea id="shareUrlBox"
+                style="width:100%;height:120px;padding:8px;border-radius:6px;border:1px solid var(--border)"></textarea>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+            <button id="shareCopyBtn" class="primary">Copy</button>
+        </div>
+    </div>
+
+    <script>
+        /* =========================
+           Constants & Defaults
+           ========================= */
+
+        /*
+         * TOKEN_STRING -- update here if token changes.
+         * Keep confidential; this file is client-side; don't embed secrets for production.
+         */
+        const TOKEN_STRING = 'aHA5ZHpwc2NlOW5meXMwcmlteGFzZ3phOW15bmt0ZmRuYWEyaTI1MDlzMGttaXNmM2RvdzlodTN0YjQ5b3ZwZnA5Z2JvYmI2ZGoxZXo3djcwdDU5YjF5cjE1NzRseTNzN3NvYzNucHA1ZXJvZThvYnBvbWxqcmZjbDRvbzJ1dXA=';
+        // Edit the above token value as required in future.
+
+        const DEFAULT_PATTERNS = {
+            "DCG_HLS": "https://live-live-dazn-az-dcg-prda.uksouth-3.streaming.mediakind.com/cmaf/<OAID>/index.m3u8",
+            "DCG_DASH": "https://live-live-dazn-az-dcg-prda.uksouth-3.streaming.mediakind.com/cmaf/<OAID>/manifest.mpd",
+            "DCG_HLS_TOKEN": "https://dazn-dcg-prda.uksouth-3.streaming.mediakind.com/<OAID>-clear/<TOKEN>/all/stream.m3u8",
+            "DCG_DASH_TOKEN": "https://dazn-dcg-prda.uksouth-3.streaming.mediakind.com/<OAID>-clear/<TOKEN>/all/manifest.mpd",
+            "DCH_HLS": "https://live-live-dazn-az-dch-prda.westeurope-3.streaming.mediakind.com/cmaf/<OAID>/index.m3u8",
+            "DCH_DASH": "https://live-live-dazn-az-dch-prda.westeurope-3.streaming.mediakind.com/cmaf/<OAID>/manifest.mpd",
+            "DCH_HLS_TOKEN": "https://dazn-dch-prda.uksouth-3.streaming.mediakind.com/<OAID>-clear/<TOKEN>/all/stream.m3u8",
+            "DCH_DASH_TOKEN": "https://dazn-dch-prda.uksouth-3.streaming.mediakind.com/<OAID>-clear/<TOKEN>/all/manifest.mpd"
+        };
+
+        const SHARE_BASE = 'https://bhavesh-ses.github.io/URL-Monitoring-Tool/';
+        const SHARE_DEFAULT_PARAMS = { rows: 2, cols: 2, rotate: 0, int: 5, refresh: 5 };
+        const URL_LENGTH_THRESHOLD = 4000;
+        const CHANNEL_NAME_TRUNC = 50; // truncate description length in channel name
+
+        /* =========================
+           App state
+           ========================= */
+
+        let patterns = { ...DEFAULT_PATTERNS };
+        let dcgData = [], dchData = [];
+        let dcgFiltered = [], dchFiltered = [];
+        let selectedOrdered = []; // {headend, oaId, overrideId, description, row}
+        let dchLoaded = false;
+        let lastSplitPct = 50;
+
+        /* =========================
+           Helpers
+           ========================= */
+
+        function base64EncodeUnicode(str) {
+            return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (m, p1) => String.fromCharCode('0x' + p1)));
+        }
+        function base64DecodeUnicode(b64) {
+            const raw = atob(b64);
+            const percent = raw.split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('');
+            return decodeURIComponent(percent);
+        }
+        function escapeHtml(s) { if (s == null) return ''; return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+        /* =========================
+           Load URLPatterns.csv
+           ========================= */
+        async function loadPatterns() {
+            try {
+                const res = await fetch('URLPatterns.csv');
+                if (!res.ok) throw new Error('not found');
+                const txt = await res.text();
+                const lines = txt.split(/\r?\n/).map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+                const map = {};
+                for (const ln of lines) {
+                    const idx = ln.indexOf(',');
+                    if (idx === -1) continue;
+                    const key = ln.slice(0, idx).trim();
+                    const patt = ln.slice(idx + 1).trim();
+                    if (key && patt) map[key] = patt;
+                }
+                if (Object.keys(map).length) patterns = { ...patterns, ...map };
+            } catch (err) {
+                console.warn('URLPatterns.csv not loaded, using defaults');
+            } finally {
+                document.getElementById('tokenPreview').textContent = TOKEN_STRING.slice(0, 16) + '...';
+            }
+        }
+
+        /* =========================
+           Parse events
+           ========================= */
+        function parseEvents(json) {
+            if (!Array.isArray(json) && Array.isArray(json.events)) json = json.events;
+            if (!Array.isArray(json)) json = [json];
+
+            return json.map(item => {
+                const e = item.event || {};
+                const broadcast = e.broadcasts?.[e.oaId] || {};
+                const channel = broadcast.channel || {};
+                const instances = channel.instances || [];
+                const sources = [], destinations = [];
+
+                instances.forEach(inst => {
+                    (inst.sources || []).forEach(s => s.sourceId && sources.push(s.sourceId));
+                    (inst.destinations || []).forEach(d => {
+                        if (d.assetName) destinations.push(d.assetName);
+                        else if (d.type) destinations.push(d.type);
+                    });
+                });
+
+                return {
+                    OAID: e.oaId || '',
+                    OverRide_Id: e.overrideId?.[0]?.id || '',
+
+                    // existing times
+                    Stream_StartTime: e.streamStartTime || '',
+                    Stream_EndTime: e.streamEndTime || '',
+                    HeEventType_Name: e.heEventTypeName || '',
+                    DRM_Required: e.drmRequired || false,
+
+                    // basic + top-level fields
+                    Description: (e.description || '').replace(/<br\s*\/?>/gi, ' ').trim(),
+                    HeResilience: e.heResilience || '',
+                    Watermarking: e.watermarking || '',
+                    CompetitionId: e.competitionId || '',
+                    ClosedCaptioning: Array.isArray(e.closedCaptioning) ? JSON.stringify(e.closedCaptioning, null, 2) : (e.closedCaptioning ? JSON.stringify(e.closedCaptioning) : ''),
+
+                    // flags / booleans
+                    Multigame: ('multigame' in e) ? String(e.multigame) : '',
+                    InProgress: ('inProgress' in e) ? String(e.inProgress) : '',
+
+                    // broadcast-level / channel-level fallback values
+                    Calculated_StartTime: broadcast?.calculatedStartTime || '',
+                    Calculated_StopTime: broadcast?.calculatedStopTime || '',
+                    Deleted: (broadcast?.deleted != null) ? String(broadcast.deleted) : '',
+                    Live2Vod: (broadcast?.live2Vod != null) ? String(broadcast.live2Vod) : '',
+                    Quality_Level: broadcast?.qualityLevel || '',
+                    Dolby_Enabled: (broadcast?.dolbyEnabled != null) ? String(broadcast.dolbyEnabled) : '',
+                    Output_SuppressionMode: broadcast?.outputSuppressionMode || (channel?.instances?.[0]?.outputSuppressionMode) || '',
+
+                    // arrays and nested objects as RAW JSON (pretty, verbose)
+                    Audio_Config: e.audioConfig ? JSON.stringify(e.audioConfig, null, 2) : (broadcast?.audioConfig ? JSON.stringify(broadcast.audioConfig, null, 2) : ''),
+                    Dolby_Config: e.dolbyConfig ? JSON.stringify(e.dolbyConfig, null, 2) : (broadcast?.dolbyConfig ? JSON.stringify(broadcast.dolbyConfig, null, 2) : ''),
+                    Recordings: (broadcast?.recordings !== undefined) ? JSON.stringify(broadcast.recordings, null, 2) : (e.recordings !== undefined ? JSON.stringify(e.recordings, null, 2) : ''),
+
+                    // keep existing fields (regions, sources, destinations)
+                    Regions: Array.isArray(e.regions) ? e.regions.join(', ') : (e.regions || ''),
+                    Sources: instances.map(inst => (inst.sources || []).map(s => s.sourceId || '').join('; ')).filter(Boolean).join(' | '),
+                    Destinations: instances.map(inst => (inst.destinations || []).map(d => d.assetName || d.type || '').join('; ')).filter(Boolean).join(' | '),
+
+                    // keep raw event for modal
+                    _rawEvent: e,
+                    _broadcast: broadcast
+                };
+
+            });
+        }
+
+        /* =========================
+           Fetch functions
+           ========================= */
+
+        async function fetchRegion(url, headend) {
+            const el = headend === 'DCG' ? 'dcgContainer' : 'dchContainer';
+            document.getElementById(el).innerHTML = '🔄 Loading...';
+            try {
+                const res = await fetch(url);
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const json = await res.json();
+                return parseEvents(json);
+            } catch (err) {
+                document.getElementById(el).innerHTML = `<div class="warning">Error fetching ${headend}: ${escapeHtml(String(err))}</div>`;
+                return [];
+            }
+        }
+
+        /* =========================
+           Search highlighting helper
+           ========================= */
+        function highlightMatch(text, query) {
+            if (!query) return escapeHtml(text);
+            const s = String(text || '');
+            const q = String(query).trim();
+            if (!q) return escapeHtml(s);
+            try {
+                const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'ig');
+                return escapeHtml(s).replace(re, (m) => `<mark>${m}</mark>`);
+            } catch (e) {
+                return escapeHtml(s);
+            }
+        }
+
+        /* =========================
+           Filtering (date range + search)
+           ========================= */
+
+        function dateInRangeIso(isoStr) {
+            if (!isoStr) return false;
+            const start = document.getElementById('dateStart').value;
+            const end = document.getElementById('dateEnd').value;
+            const dOnly = new Date(isoStr).toISOString().split('T')[0];
+            if (start && end) {
+                if (new Date(end) < new Date(start)) {
+                    // invalid range
+                    return false;
+                }
+                return (dOnly >= start && dOnly <= end);
+            } else if (start && !end) {
+                return (dOnly === start);
+            } else if (!start && end) {
+                return (dOnly === end);
+            } else {
+                return true;
+            }
+        }
+
+        function applyFiltersAndRender() {
+            // validate date range
+            const start = document.getElementById('dateStart').value;
+            const end = document.getElementById('dateEnd').value;
+            if (start && end && new Date(end) < new Date(start)) {
+                alert('End date cannot be earlier than Start date.');
+                return;
+            }
+
+            const q = document.getElementById('searchBox').value.trim().toLowerCase();
+
+            dcgFiltered = dcgData.filter(r => {
+                if (!dateInRangeIso(r.Stream_StartTime)) return false;
+                if (!q) return true;
+                return Object.keys(r).some(k => !k.startsWith('_') && String(r[k] || '').toLowerCase().includes(q));
+            });
+
+            dchFiltered = dchData.filter(r => {
+                if (!dateInRangeIso(r.Stream_StartTime)) return false;
+                if (!q) return true;
+                return Object.keys(r).some(k => !k.startsWith('_') && String(r[k] || '').toLowerCase().includes(q));
+            });
+
+            renderTable(dcgFiltered, 'dcgContainer', 'DCG');
+            if (dchLoaded) renderTable(dchFiltered, 'dchContainer', 'DCH');
+            updateCounts();
+        }
+
+        /* =========================
+           Render table with checkboxes & row clicks (Detailed View)
+           ========================= */
+
+        function renderTable(rows, containerId, headend) {
+            const container = document.getElementById(containerId);
+            if (!rows || rows.length === 0) {
+                container.innerHTML = '<p class="muted">❗ No events found.</p>';
+                updateCounts();
+                return;
+            }
+            const keys = Object.keys(rows[0]).filter(k => !k.startsWith('_'));
+            let html = `<table><thead><tr><th style="width:38px">Sel</th>`;
+            keys.forEach(k => html += `<th>${escapeHtml(k)}</th>`);
+            html += `</tr></thead><tbody>`;
+
+            rows.forEach((row, idx) => {
+                const checked = selectedOrdered.some(s => s.headend === headend && s.oaId === row.OAID) ? ' checked' : '';
+                html += `<tr data-index="${idx}" data-oa="${escapeHtml(row.OAID)}">`;
+                html += `<td><input class="row-select" data-headend="${headend}" data-idx="${idx}" type="checkbox"${checked}></td>`;
+                keys.forEach(k => {
+                    // raw value (string/number/boolean)
+                    const rawVal = (typeof row[k] === 'boolean' || typeof row[k] === 'number') ? String(row[k]) : (row[k] || '');
+                    const q = document.getElementById('searchBox').value.trim();
+
+                    // detect raw JSON-looking string (starts with { or [) — we stored pretty JSON via stringify(...) earlier
+                    const isJson = typeof rawVal === 'string' && rawVal.trim().length > 0 && (/^[\{\[]/.test(rawVal.trim()));
+
+                    if (isJson) {
+                        // show as pretty block; escape HTML inside
+                        const escaped = escapeHtml(rawVal);
+                        // highlight search inside JSON as well (simple replace on escaped text)
+                        const highlighted = q ? escaped.replace(new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'ig'), (m) => `<mark>${m}</mark>`) : escaped;
+                        html += `<td data-key="${k}"><pre style="margin:0;white-space:pre-wrap;word-break:break-all;">${highlighted}</pre></td>`;
+                    } else {
+                        html += `<td data-key="${k}">${highlightMatch(rawVal, q)}</td>`;
+                    }
+                });
+
+                html += `</tr>`;
+            });
+
+            html += `</tbody></table>`;
+            container.innerHTML = html;
+
+            // attach listeners to checkboxes
+            container.querySelectorAll('.row-select').forEach(cb => {
+                cb.addEventListener('change', (e) => {
+                    const head = cb.dataset.headend;
+                    const idx = Number(cb.dataset.idx);
+                    const row = (head === 'DCG' ? dcgFiltered : dchFiltered)[idx];
+                    if (cb.checked) {
+                        selectedOrdered.push({ headend: head, oaId: row.OAID, overrideId: row.OverRide_Id, description: row.Description, row });
+                    } else {
+                        const i = selectedOrdered.findIndex(s => s.headend === head && s.oaId === row.OAID);
+                        if (i > -1) selectedOrdered.splice(i, 1);
+                    }
+                });
+            });
+
+            // attach row click for Detailed View (when enabled)
+            container.querySelectorAll('tbody tr').forEach(tr => {
+                tr.addEventListener('click', (e) => {
+                    if (e.target.closest('input[type="checkbox"]')) return; // ignore if checkbox clicked
+                    const head = containerId === 'dcgContainer' ? 'DCG' : 'DCH';
+                    const idx = Number(tr.dataset.index);
+                    const row = (head === 'DCG' ? dcgFiltered[idx] : dchFiltered[idx]);
+                    if (document.getElementById('detailedViewCheckbox').checked) {
+                        openDetailModalForRow(row, head);
+                    }
+                });
+            });
+
+            updateCounts();
+        }
+
+        /* =========================
+           Update counts & status
+           ========================= */
+
+        function updateCounts() {
+            const totalDcg = dcgData.length, shownDcg = dcgFiltered.length;
+            const totalDch = dchData.length, shownDch = dchFiltered.length;
+            document.getElementById('countsInfo').textContent = `DCG: ${shownDcg}/${totalDcg} shown` + (dchLoaded ? ` • DCH: ${shownDch}/${totalDch} shown` : '');
+        }
+
+        /* =========================
+           Export functions
+           ========================= */
+
+        function exportVisible(region) {
+            const nowUtc = new Date().toISOString().replace(/:/g, '-').replace(/\.\d+Z$/, '_UTC');
+            if (region === 'dcg') {
+                const rows = dcgFiltered.map(r => ({ ...r }));
+                if (!rows.length) { alert('No DCG rows to export'); return; }
+                const ws = XLSX.utils.json_to_sheet(rows);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'DCG');
+                XLSX.writeFile(wb, `DCG_${nowUtc}.xlsx`);
+            } else if (region === 'dch') {
+                const rows = dchFiltered.map(r => ({ ...r }));
+                if (!rows.length) { alert('No DCH rows to export'); return; }
+                const ws = XLSX.utils.json_to_sheet(rows);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'DCH');
+                XLSX.writeFile(wb, `DCH_${nowUtc}.xlsx`);
+            } else {
+                const wb = XLSX.utils.book_new();
+                const dcgRows = dcgFiltered.map(r => ({ ...r }));
+                const dchRows = dchFiltered.map(r => ({ ...r }));
+                if (dcgRows.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dcgRows), 'DCG');
+                if (dchRows.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dchRows), 'DCH');
+                if (!dcgRows.length && !dchRows.length) { alert('No rows to export'); return; }
+                XLSX.writeFile(wb, `DCG+DCH_${nowUtc}.xlsx`);
+            }
+        }
+
+        /* =========================
+           Share URL builder (copy to clipboard)
+           ========================= */
+
+        function sanitizeChannelName(n) {
+            return String(n || '').replace(/[\r\n,]+/g, ' ').replace(/\s+/g, ' ').trim();
+        }
+
+        function buildUrlForSelection(sel, protocolKey) {
+            const head = sel.headend;
+            const o = sel.oaId;
+            const templateKey = `${head}_${protocolKey}`;
+            let patt = patterns[templateKey] || DEFAULT_PATTERNS[templateKey];
+            if (!patt) return null;
+            let url = patt.replace(/<OAID>/g, encodeURIComponent(o));
+            url = url.replace(/<TOKEN>/g, TOKEN_STRING);
+            return url;
+        }
+
+        async function buildShareMonitoringUrl() {
+            if (selectedOrdered.length === 0) { alert('No rows selected.'); return; }
+            const protos = [];
+            if (document.getElementById('protocolHls').checked) protos.push('HLS');
+            if (document.getElementById('protocolDash').checked) protos.push('DASH');
+            if (document.getElementById('protocolHlsToken').checked) protos.push('HLS_TOKEN');
+            if (document.getElementById('protocolDashToken').checked) protos.push('DASH_TOKEN');
+            if (protos.length === 0) { if (!confirm('No protocol selected. Continue with HLS?')) return; protos.push('HLS'); }
+
+            const lines = [];
+            selectedOrdered.forEach(sel => {
+                protos.forEach(proto => {
+                    const url = buildUrlForSelection(sel, proto);
+                    if (!url) return;
+                    let desc = sanitizeChannelName(sel.description || '');
+                    if (desc.length > CHANNEL_NAME_TRUNC) desc = desc.slice(0, CHANNEL_NAME_TRUNC) + '...';
+                    const ch = `${sel.headend}_${sel.overrideId || ''}_${desc}_${proto}`;
+                    lines.push(`${ch},${url}`);
+                });
+            });
+
+            const csvText = lines.join('\n');
+            if (!csvText) { alert('No URLs built'); return; }
+            const encoded = base64EncodeUnicode(csvText);
+            const p = new URLSearchParams();
+            p.set('data', encoded);
+            p.set('rows', String(SHARE_DEFAULT_PARAMS.rows));
+            p.set('cols', String(SHARE_DEFAULT_PARAMS.cols));
+            p.set('rotate', String(SHARE_DEFAULT_PARAMS.rotate));
+            p.set('int', String(SHARE_DEFAULT_PARAMS.int));
+            p.set('refresh', String(SHARE_DEFAULT_PARAMS.refresh));
+            let finalUrl = `${SHARE_BASE}?${p.toString()}`;
+
+            if (finalUrl.length > URL_LENGTH_THRESHOLD) {
+                // shorten channel names and rebuild
+                const shortLines = [];
+                selectedOrdered.forEach(sel => {
+                    protos.forEach(proto => {
+                        const url = buildUrlForSelection(sel, proto);
+                        if (!url) return;
+                        const ch = `${sel.headend}_${sel.overrideId || ''}_${proto}`;
+                        shortLines.push(`${ch},${url}`);
+                    });
+                });
+                const enc2 = base64EncodeUnicode(shortLines.join('\n'));
+                const p2 = new URLSearchParams();
+                p2.set('data', enc2);
+                p2.set('rows', String(SHARE_DEFAULT_PARAMS.rows));
+                p2.set('cols', String(SHARE_DEFAULT_PARAMS.cols));
+                p2.set('rotate', String(SHARE_DEFAULT_PARAMS.rotate));
+                p2.set('int', String(SHARE_DEFAULT_PARAMS.int));
+                p2.set('refresh', String(SHARE_DEFAULT_PARAMS.refresh));
+                finalUrl = `${SHARE_BASE}?${p2.toString()}`;
+                alert('Original URL was long — created shortened channel-name variant.');
+            }
+
+            // try to copy to clipboard
+            try {
+                await navigator.clipboard.writeText(finalUrl);
+                showShareModal(finalUrl, true);
+            } catch (err) {
+                // fallback: show modal with url and let user copy
+                console.warn('Clipboard write failed', err);
+                showShareModal(finalUrl, false);
+            }
+        }
+
+        function showShareModal(url, copied) {
+            document.getElementById('shareUrlBox').value = url;
+            document.getElementById('shareModal').style.display = 'block';
+            document.getElementById('shareModal').setAttribute('aria-hidden', 'false');
+            if (copied) {
+                document.getElementById('shareUrlBox').select();
+                // show message (user sees it's copied)
+            }
+        }
+
+        /* =========================
+           Compare functions
+           ========================= */
+
+        function openCompareModal() {
+            document.getElementById('compareModal').style.display = 'block';
+            document.getElementById('compareModal').setAttribute('aria-hidden', 'false');
+        }
+        function closeCompareModal() {
+            document.getElementById('compareModal').style.display = 'none';
+            document.getElementById('compareModal').setAttribute('aria-hidden', 'true');
+        }
+        function runCompareOaid() {
+            const oaid = document.getElementById('compareOaidInput').value.trim();
+            if (!oaid) return alert('Enter OAID');
+            const dcgRow = dcgData.find(r => r.OAID === oaid);
+            const dchRow = dchData.find(r => r.OAID === oaid);
+            if (!dcgRow && !dchRow) return document.getElementById('compareResult').innerHTML = `<div class="muted">No event found with OAID ${escapeHtml(oaid)}</div>`;
+
+            const keys = new Set();
+            if (dcgRow) Object.keys(dcgRow).forEach(k => { if (!k.startsWith('_')) keys.add(k); });
+            if (dchRow) Object.keys(dchRow).forEach(k => { if (!k.startsWith('_')) keys.add(k); });
+            const arrKeys = Array.from(keys);
+
+            let html = `<div style="margin-bottom:8px"><strong>OAID:</strong> ${escapeHtml(oaid)} • Matches: `;
+            let matches = 0, mismatches = 0;
+            arrKeys.forEach(k => {
+                const v1 = dcgRow ? (dcgRow[k] === undefined ? '' : String(dcgRow[k])) : '';
+                const v2 = dchRow ? (dchRow[k] === undefined ? '' : String(dchRow[k])) : '';
+                if (v1 === v2 && v1 !== '') matches++; else mismatches++;
+            });
+            html += `${matches} • Mismatches: ${mismatches}</div>`;
+
+            html += `<div style="display:flex;gap:12px;align-items:flex-start">`;
+            // DCG column
+            html += `<div style="flex:1"><h4>DCG</h4><table><thead><tr><th>Field</th><th>Value</th><th>Status</th></tr></thead><tbody>`;
+            arrKeys.forEach(k => {
+                const v1 = dcgRow ? (dcgRow[k] === undefined ? '' : String(dcgRow[k])) : '';
+                const v2 = dchRow ? (dchRow[k] === undefined ? '' : String(dchRow[k])) : '';
+                const status = (v1 === v2 && v1 !== '') ? 'MATCH' : 'MISMATCH';
+                const bg = status === 'MATCH' ? 'background:' + getCssVar('--match') : 'background:' + getCssVar('--mismatch');
+                html += `<tr><td>${escapeHtml(k)}</td><td style="${bg}">${escapeHtml(v1)}</td><td>${status}</td></tr>`;
+            });
+            html += `</tbody></table></div>`;
+
+            // DCH column
+            html += `<div style="flex:1"><h4>DCH</h4><table><thead><tr><th>Field</th><th>Value</th><th>Status</th></tr></thead><tbody>`;
+            arrKeys.forEach(k => {
+                const v1 = dcgRow ? (dcgRow[k] === undefined ? '' : String(dcgRow[k])) : '';
+                const v2 = dchRow ? (dchRow[k] === undefined ? '' : String(dchRow[k])) : '';
+                const status = (v1 === v2 && v1 !== '') ? 'MATCH' : 'MISMATCH';
+                const bg = status === 'MATCH' ? 'background:' + getCssVar('--match') : 'background:' + getCssVar('--mismatch');
+                html += `<tr><td>${escapeHtml(k)}</td><td style="${bg}">${escapeHtml(v2)}</td><td>${status}</td></tr>`;
+            });
+            html += `</tbody></table></div>`;
+
+            html += `</div>`;
+            document.getElementById('compareResult').innerHTML = html;
+        }
+
+        function exportCompareResult() {
+            const oaid = document.getElementById('compareOaidInput').value.trim();
+            if (!oaid) return alert('Enter OAID');
+            const dcgRow = dcgData.find(r => r.OAID === oaid);
+            const dchRow = dchData.find(r => r.OAID === oaid);
+            if (!dcgRow && !dchRow) return alert('No data');
+
+            const keys = new Set();
+            if (dcgRow) Object.keys(dcgRow).forEach(k => { if (!k.startsWith('_')) keys.add(k); });
+            if (dchRow) Object.keys(dchRow).forEach(k => { if (!k.startsWith('_')) keys.add(k); });
+            const arrKeys = Array.from(keys);
+            const out = arrKeys.map(k => {
+                const v1 = dcgRow ? (dcgRow[k] === undefined ? '' : String(dcgRow[k])) : '';
+                const v2 = dchRow ? (dchRow[k] === undefined ? '' : String(dchRow[k])) : '';
+                const status = (v1 === v2 && v1 !== '') ? 'MATCH' : 'MISMATCH';
+                return { Field: k, DCG: v1, DCH: v2, Status: status };
+            });
+            const ws = XLSX.utils.json_to_sheet(out);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, `Compare_${oaid}`);
+            const nowUtc = new Date().toISOString().replace(/:/g, '-').replace(/\.\d+Z$/, '_UTC');
+            XLSX.writeFile(wb, `Compare_${oaid}_${nowUtc}.xlsx`);
+        }
+
+        /* =========================
+           Detail modal (Detailed View) + fetch latest per OAID
+           ========================= */
+
+        function openDetailModalForRow(rowObj, headend) {
+            const modal = document.getElementById('detailModal');
+            const content = document.getElementById('detailContent');
+            const subtitle = document.getElementById('detailSubtitle');
+            const oaid = rowObj.OAID || '';
+            subtitle.textContent = `${headend} • OAID: ${oaid}`;
+            try { content.textContent = JSON.stringify(rowObj._rawEvent || rowObj, null, 2); } catch (e) { content.textContent = String(rowObj._rawEvent || rowObj); }
+            modal.dataset.currentOaid = oaid;
+            modal.dataset.currentHeadend = headend;
+            modal.style.display = 'block';
+            modal.setAttribute('aria-hidden', 'false');
+        }
+
+        async function fetchLatestEventForOaid(oaid, headend) {
+            const endpoint = headend === 'DCG' ? 'https://cluster-1.uksouth-3.streaming.mediakind.com/dazn/events' : 'https://cluster-1.westeurope-3.streaming.mediakind.com/dazn/events';
+            try {
+                const res = await fetch(endpoint);
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const json = await res.json();
+                let arr = json;
+                if (!Array.isArray(arr) && Array.isArray(json.events)) arr = json.events;
+                if (!Array.isArray(arr)) arr = [json];
+                // find item
+                for (const it of arr) {
+                    const ev = it.event || it;
+                    if (ev.oaId === oaid) return ev;
+                    if (ev.internalId === oaid) return ev;
+                    if (ev.broadcasts && ev.broadcasts[oaid]) return ev;
+                }
+                return null;
+            } catch (err) {
+                throw err;
+            }
+        }
+
+        /* =========================
+           Splitter (drag) logic
+           ========================= */
+
+        // ----------------------------
+        // Improved enableSplitter()
+        // ----------------------------
+        function enableSplitter() {
+            // avoid attaching listeners multiple times
+            if (enableSplitter._inited) return;
+            enableSplitter._inited = true;
+
+            const splitter = document.getElementById('splitter');
+            const dcg = document.getElementById('dcgPanel');
+            const dch = document.getElementById('dchPanel');
+            const wrap = document.getElementById('splitWrap');
+            if (!splitter || !dcg || !dch || !wrap) return;
+
+            // make sure splitter is on top and can receive pointer events
+            splitter.style.zIndex = 60;
+            splitter.style.userSelect = 'none';
+            splitter.style.touchAction = 'none';
+
+            let dragging = false;
+            let startX = 0;
+            let startLeft = 0;
+            let totalW = 0;
+
+            splitter.addEventListener('mousedown', (e) => {
+                // only left button
+                if (e.button !== 0) return;
+                dragging = true;
+                startX = e.clientX;
+                totalW = wrap.clientWidth;
+                startLeft = dcg.getBoundingClientRect().width;
+                // visual feedback
+                document.body.style.cursor = 'col-resize';
+                document.body.style.userSelect = 'none';
+                e.preventDefault();
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!dragging) return;
+                const dx = e.clientX - startX;
+                let newLeft = startLeft + dx;
+                // clamp
+                const min = 160;
+                const max = Math.max(totalW - 160, min + 10);
+                if (newLeft < min) newLeft = min;
+                if (newLeft > max) newLeft = max;
+                const pct = Math.round((newLeft / totalW) * 100);
+                dcg.style.flexBasis = pct + '%';
+                dch.style.flexBasis = (100 - pct) + '%';
+                // store last
+                window.lastSplitPct = pct;
+            });
+
+            window.addEventListener('mouseup', () => {
+                if (!dragging) return;
+                dragging = false;
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+            });
+
+            // touch support (mobile)
+            splitter.addEventListener('touchstart', (e) => {
+                const touch = e.touches[0];
+                dragging = true;
+                startX = touch.clientX;
+                totalW = wrap.clientWidth;
+                startLeft = dcg.getBoundingClientRect().width;
+                e.preventDefault();
+            }, { passive: false });
+            window.addEventListener('touchmove', (e) => {
+                if (!dragging) return;
+                const touch = e.touches[0];
+                const dx = touch.clientX - startX;
+                let newLeft = startLeft + dx;
+                const min = 160;
+                const max = Math.max(totalW - 160, min + 10);
+                if (newLeft < min) newLeft = min;
+                if (newLeft > max) newLeft = max;
+                const pct = Math.round((newLeft / totalW) * 100);
+                dcg.style.flexBasis = pct + '%';
+                dch.style.flexBasis = (100 - pct) + '%';
+                window.lastSplitPct = pct;
+            }, { passive: false });
+            window.addEventListener('touchend', () => { dragging = false; });
+        }
+
+
+        /* =========================
+           Theme & Clock
+           ========================= */
+
+        function toggleTheme() {
+            const root = document.documentElement;
+            const cur = root.getAttribute('data-theme') || 'light';
+            root.setAttribute('data-theme', cur === 'light' ? 'dark' : 'light');
+            document.getElementById('themeToggle').textContent = cur === 'light' ? '☀️' : '🌙';
+        }
+        function startClock() {
+            const el = document.getElementById('utcClock');
+            setInterval(() => {
+                const now = new Date();
+                const hh = String(now.getUTCHours()).padStart(2, '0');
+                const mm = String(now.getUTCMinutes()).padStart(2, '0');
+                const ss = String(now.getUTCSeconds()).padStart(2, '0');
+                el.textContent = `${hh}:${mm}:${ss} UTC`;
+            }, 250);
+        }
+        function getCssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name) || '#fff'; }
+
+        /* =========================
+           Wiring UI listeners
+           ========================= */
+
+        document.getElementById('searchBox').addEventListener('input', () => { clearTimeout(window.__searchDeb); window.__searchDeb = setTimeout(applyFiltersAndRender, 300); });
+        document.getElementById('dateStart').addEventListener('change', applyFiltersAndRender);
+        document.getElementById('dateEnd').addEventListener('change', applyFiltersAndRender);
+        document.getElementById('refreshBtn').addEventListener('click', () => initLoad(true));
+        document.getElementById('showDchCheckbox').addEventListener('change', async (e) => {
+            const checked = e.target.checked;
+            const splitter = document.getElementById('splitter');
+            const dchPanel = document.getElementById('dchPanel');
+            const dcgPanel = document.getElementById('dcgPanel');
+            if (checked) {
+                dchPanel.classList.remove('hidden'); splitter.classList.remove('hidden'); dchPanel.style.display = 'block';
+                // default to previous split or 50/50
+                dcgPanel.style.flexBasis = lastSplitPct ? lastSplitPct + '%' : '50%';
+                dchPanel.style.flexBasis = (100 - (lastSplitPct || 50)) + '%';
+                if (!dchLoaded) {
+                    dchData = await fetchRegion('https://cluster-1.westeurope-3.streaming.mediakind.com/dazn/events', 'DCH');
+                    dchLoaded = true;
+                }
+                applyFiltersAndRender();
+                // <-- ADD THIS LINE:
+                enableSplitter();
+            } else {
+                dchPanel.classList.add('hidden'); splitter.classList.add('hidden'); dcgPanel.style.flexBasis = '100%';
+                applyFiltersAndRender();
+            }
+        });
+
+        document.getElementById('shareBtn').addEventListener('click', buildShareMonitoringUrl);
+        document.getElementById('compareBtn').addEventListener('click', openCompareModal);
+        document.getElementById('closeCompareBtn').addEventListener('click', closeCompareModal);
+        document.getElementById('compareRunBtn').addEventListener('click', runCompareOaid);
+        document.getElementById('compareExportBtn').addEventListener('click', exportCompareResult);
+
+        document.getElementById('detailCloseBtn').addEventListener('click', () => {
+            document.getElementById('detailModal').style.display = 'none';
+            document.getElementById('detailModal').setAttribute('aria-hidden', 'true');
+        });
+        document.getElementById('detailFetchLatest').addEventListener('click', async () => {
+            const modal = document.getElementById('detailModal');
+            const oaid = modal.dataset.currentOaid;
+            const head = modal.dataset.currentHeadend;
+            if (!oaid || !head) return;
+            const content = document.getElementById('detailContent');
+            content.textContent = '🔄 Fetching latest...';
+            try {
+                const ev = await fetchLatestEventForOaid(oaid, head);
+                if (ev) content.textContent = JSON.stringify(ev, null, 2);
+                else content.textContent = `No event found for OAID ${oaid}`;
+            } catch (err) {
+                content.textContent = 'Error: ' + String(err);
+            }
+        });
+
+        document.getElementById('shareCloseBtn').addEventListener('click', () => {
+            document.getElementById('shareModal').style.display = 'none';
+            document.getElementById('shareModal').setAttribute('aria-hidden', 'true');
+        });
+        document.getElementById('shareCopyBtn').addEventListener('click', () => {
+            const val = document.getElementById('shareUrlBox').value;
+            navigator.clipboard.writeText(val).then(() => alert('Copied!')).catch(() => alert('Copy failed. Select and copy manually.'));
+        });
+
+        document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+        document.getElementById('exportBtn').addEventListener('click', () => {
+            if (dchLoaded && !document.getElementById('dchPanel').classList.contains('hidden')) exportVisible('both');
+            else exportVisible('dcg');
+        });
+        document.getElementById('exportDcgBtn').addEventListener('click', () => exportVisible('dcg'));
+        document.getElementById('exportDchBtn').addEventListener('click', () => exportVisible('dch'));
+
+        /* =========================
+           Initial load pipeline
+           ========================= */
+
+        async function initLoad(force = false) {
+            await loadPatterns();
+            dcgData = await fetchRegion('https://cluster-1.uksouth-3.streaming.mediakind.com/dazn/events', 'DCG');
+            dchData = [];
+            dchLoaded = false;
+            // ensure Show DCH is unchecked and DCH panel + splitter are hidden at load
+            const showDchEl = document.getElementById('showDchCheckbox');
+            if (showDchEl) showDchEl.checked = false;
+
+            const dchPanel = document.getElementById('dchPanel');
+            const splitter = document.getElementById('splitter');
+            const dcgPanel = document.getElementById('dcgPanel');
+
+            if (dchPanel) {
+                dchPanel.classList.add('hidden');
+                dchPanel.style.display = 'none';
+            }
+            if (splitter) {
+                splitter.classList.add('hidden');
+                splitter.style.display = 'none';
+            }
+            if (dcgPanel) {
+                dcgPanel.style.flexBasis = '100%'; // DCG takes full width
+            }
+
+            selectedOrdered = [];
+            // ensure protocols unchecked by default
+            ['protocolHls', 'protocolDash', 'protocolHlsToken', 'protocolDashToken'].forEach(id => {
+                const el = document.getElementById(id); if (el) el.checked = false;
+            });
+            applyFiltersAndRender();
+            enableSplitter();
+            startClock();
+        }
+
+        initLoad();
+
+        /* =========================
+           Utility: find CSS var
+           ========================= */
+        function getCssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name) || '#fff'; }
+
+        /* =========================
+           Fetch single OAID helper (re-used by detail)
+           ========================= */
+
+        async function fetchLatestEventForOaid(oaid, headend) {
+            const endpoint = headend === 'DCG' ? 'https://cluster-1.uksouth-3.streaming.mediakind.com/dazn/events' : 'https://cluster-1.westeurope-3.streaming.mediakind.com/dazn/events';
+            try {
+                const res = await fetch(endpoint);
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const json = await res.json();
+                let arr = json;
+                if (!Array.isArray(arr) && Array.isArray(json.events)) arr = json.events;
+                if (!Array.isArray(arr)) arr = [json];
+                for (const it of arr) {
+                    const ev = it.event || it;
+                    if (ev.oaId === oaid) return ev;
+                    if (ev.internalId === oaid) return ev;
+                    if (ev.broadcasts && ev.broadcasts[oaid]) return ev;
+                }
+                return null;
+            } catch (err) {
+                throw err;
+            }
+        }
+
+        /* =========================
+           Final: attach search / filter debounce and window handlers
+           ========================= */
+        /* =========================
+        Final: Code this is the best code use this only.
+        ========================= */
+        /* Blocked the Right click option to inspect the source code as a security concern of code copyright.
+        Below is exact code added newly at last part of code: */
+
+        document.addEventListener('contextmenu', event => event.preventDefault());
+        document.addEventListener('keydown', e => {
+            if (e.ctrlKey && (e.key === 'u' || e.key === 'U' || e.key === 'i' || e.key === 'I' || e.key === 'j' || e.key === 'J')) {
+                e.preventDefault();
+            }
+            if (e.keyCode === 123) { // F12 key
+                e.preventDefault();
+            }
+        });
+
+        window.addEventListener('resize', () => { /* optional: keep UI responsive */ });
+
+    </script>
+</body>
+</html>
